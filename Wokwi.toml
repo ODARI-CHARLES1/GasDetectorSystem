@@ -1,0 +1,4 @@
+[wokwi]
+version = 1
+firmware ='./Src/main/build/esp32.esp32.esp32/main.ino.bin'
+elf ='./Src/main/build/esp32.esp32.esp32/main.ino.elf'
