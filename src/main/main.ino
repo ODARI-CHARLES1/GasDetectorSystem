@@ -1,56 +1,89 @@
-// IoT Gas Detection System for Arduino Uno
-// MQ-2 Gas Sensor, Buzzer, Red/Green LEDs
+#include <SoftwareSerial.h>
+#include <DFRobotDFPlayerMini.h>
+#include <Wire.h>
+#include <LiquidCrystal_I2C.h>
 
-// Pin definitions
-const int mqDigitalPin = 5;   // MQ-2 digital output
-const int mqAnalogPin = A0;   // MQ-2 analog output (optional for calibration)
-const int redLedPin = 2;
-const int greenLedPin = 3;
-const int buzzerPin = 4;
+SoftwareSerial mySerial(10, 11); // RX, TX
+DFRobotDFPlayerMini myDFPlayer;
 
-// Gas threshold (adjust based on MQ-2 calibration)
-const int gasThreshold = 400; // Analog reading threshold (0-1023)
+// LCD (change 0x27 if needed)
+LiquidCrystal_I2C lcd(0x27, 16, 2);
 
-// Variables
-int gasValue = 0;
+// Pin Definitions
+const int mq135Pin = A0;
+const int redLED = 7;
+const int greenLED = 6;
+
+int gasThreshold = 400;  // Adjust after calibration
+bool gasAlertActive = false;
 
 void setup() {
-  Serial.begin(9600);        // Initialize serial monitor
-  pinMode(mqDigitalPin, INPUT);
-  pinMode(mqAnalogPin, INPUT);
-  pinMode(redLedPin, OUTPUT);
-  pinMode(greenLedPin, OUTPUT);
-  pinMode(buzzerPin, OUTPUT);
+  Serial.begin(9600);
+  mySerial.begin(9600);
 
-  digitalWrite(redLedPin, LOW);
-  digitalWrite(greenLedPin, HIGH);  // Start with green LED ON
-  digitalWrite(buzzerPin, LOW);
+  pinMode(redLED, OUTPUT);
+  pinMode(greenLED, OUTPUT);
+
+  digitalWrite(redLED, LOW);
+  digitalWrite(greenLED, HIGH);
+
+  // Initialize LCD
+  lcd.init();
+  lcd.backlight();
+  lcd.setCursor(0, 0);
+  lcd.print("Gas Monitor");
+  lcd.setCursor(0, 1);
+  lcd.print("Initializing...");
+  delay(2000);
+  lcd.clear();
+
+  if (!myDFPlayer.begin(mySerial)) {
+    Serial.println("DFPlayer not detected!");
+    lcd.print("DFPlayer Error");
+    while (true);
+  }
+
+  myDFPlayer.volume(25);
+  Serial.println("System Ready");
 }
 
 void loop() {
-  // Read digital and analog values from MQ-2
-  int digitalGas = digitalRead(mqDigitalPin);
-  gasValue = analogRead(mqAnalogPin);
 
-  Serial.print("MQ-2 Digital: ");
-  Serial.print(digitalGas);
-  Serial.print(" | MQ-2 Analog: ");
+  int gasValue = analogRead(mq135Pin);
+
+  Serial.print("Gas Value: ");
   Serial.println(gasValue);
 
-  // Check if gas exceeds threshold
-  if (gasValue >= gasThreshold) {
-    // Gas detected
-    digitalWrite(redLedPin, HIGH);
-    digitalWrite(greenLedPin, LOW);
-    digitalWrite(buzzerPin, HIGH);
-    Serial.println("WARNING: Gas leak detected!");
+  lcd.setCursor(0, 0);
+  lcd.print("Gas: ");
+  lcd.print(gasValue);
+  lcd.print("    "); // Clear extra digits
+
+  if (gasValue > gasThreshold) {
+
+    // 🚨 GAS DETECTED
+    digitalWrite(redLED, HIGH);
+    digitalWrite(greenLED, LOW);
+
+    lcd.setCursor(0, 1);
+    lcd.print("!!! GAS LEAK !!!");
+
+    if (!gasAlertActive) {
+      myDFPlayer.play(1);
+      gasAlertActive = true;
+    }
+
   } else {
-    // Safe condition
-    digitalWrite(redLedPin, LOW);
-    digitalWrite(greenLedPin, HIGH);
-    digitalWrite(buzzerPin, LOW);
-    Serial.println("Environment Safe");
+
+    // ✅ SAFE
+    digitalWrite(redLED, LOW);
+    digitalWrite(greenLED, HIGH);
+
+    lcd.setCursor(0, 1);
+    lcd.print("Status: SAFE     ");
+
+    gasAlertActive = false;
   }
 
-  delay(1000); // Wait 1 second before next reading
+  delay(1000);
 }
