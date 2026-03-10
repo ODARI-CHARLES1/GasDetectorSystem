@@ -1,0 +1,5 @@
+/build
+*.exe
+*.bin
+*.hex
+*.elf
