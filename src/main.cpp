@@ -24,13 +24,13 @@ const int GAS_THRESHOLD = 500;
 const int SMOKE_THRESHOLD = 350;
 const int FIRE_THRESHOLD = 700;
 
-// ---------------- Variables ----------------
-int gasValue;
-int flameValue;
-bool alertActive = false;
-bool gasSmsSent = false;
-bool smokeSmsSent = false;
-bool fireSmsSent = false;
+// ================= STATE =================
+int gasValue = 0;
+int flameValue = 0;
+int currentState = 0;  // 0=SAFE, 1=SMOKE, 2=GAS, 3=FIRE
+int lastState = 0;
+
+bool smsSent = false;
 bool callMade = false;
 bool alarmPlaying = false;
 
