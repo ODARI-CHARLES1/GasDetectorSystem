@@ -12,9 +12,8 @@ const int greenRGB = 12;
 const int blueRGB = A4;
 const int redLED = 13;
 
-// ---------------- SIM800L ----------------
-SoftwareSerial sim800(2,3);
-String phoneNumber = "+254111639505";
+// SIM800L
+SoftwareSerial sim800(3,2);
 
 // ---------------- DFPLAYER ----------------
 SoftwareSerial dfSerial(10,11);
