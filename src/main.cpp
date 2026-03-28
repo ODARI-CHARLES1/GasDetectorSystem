@@ -69,21 +69,11 @@ void setup(){
   pinMode(greenLED,OUTPUT);
   pinMode(flamePin,INPUT);
 
-  // DFPlayer
-  if(player.begin(dfSerial)){
-    player.volume(25);
-  }
+  setRGB(0,1,0); // GREEN = SAFE
 
-  // RTC
-  if(!rtc.begin()){
-    Serial.println("RTC Error");
-    while(1);
-  }
-  if(rtc.lostPower()){
-    rtc.adjust(DateTime(F(__DATE__),F(__TIME__)));
-  }
-
-  lcd.print("SMART SAFETY SYS");
+  lcd.print("Smart Safety Sys");
+  lcd.setCursor(0,1);
+  lcd.print("Initializing..");
   delay(2000);
   lcd.clear();
 
