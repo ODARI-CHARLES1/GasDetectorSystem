@@ -34,67 +34,24 @@ bool fireSmsSent = false;
 bool callMade = false;
 bool alarmPlaying = false;
 
-// ---------------- RGB Timing ----------------
-unsigned long rgbTimer = 0;
-int rgbState = 0;
+// ================= TIMING =================
+unsigned long lastSensorRead = 0;
+unsigned long lastLCDUpdate = 0;
+unsigned long lastSmsTime = 0;
+unsigned long lastCallTime = 0;
+unsigned long gasFallTime = 0;
 
-// ---------------- FUNCTIONS ----------------
+const unsigned long SENSOR_INTERVAL = 50;
+const unsigned long LCD_INTERVAL = 500;
+const unsigned long SMS_COOLDOWN = 30000;
+const unsigned long CALL_COOLDOWN = 60000;
+const unsigned long GAS_FALL_DELAY = 10000;  // 10 sec delay to allow gas to fall
 
-// RGB blinking sequence for danger
-void rgbDangerBlink(){
-  if(millis() - rgbTimer > 200){
-    rgbTimer = millis();
-    switch(rgbState){
-      case 0: digitalWrite(redRGB,HIGH); digitalWrite(greenRGB,LOW); digitalWrite(blueRGB,LOW); break;
-      case 1: digitalWrite(redRGB,LOW); digitalWrite(greenRGB,HIGH); digitalWrite(blueRGB,LOW); break;
-      case 2: digitalWrite(redRGB,LOW); digitalWrite(greenRGB,LOW); digitalWrite(blueRGB,HIGH); break;
-      case 3: digitalWrite(redRGB,HIGH); digitalWrite(greenRGB,HIGH); digitalWrite(blueRGB,LOW); break;
-      case 4: digitalWrite(redRGB,HIGH); digitalWrite(greenRGB,LOW); digitalWrite(blueRGB,HIGH); break;
-      case 5: digitalWrite(redRGB,LOW); digitalWrite(greenRGB,HIGH); digitalWrite(blueRGB,HIGH); break;
-    }
-    rgbState++;
-    if(rgbState > 5) rgbState = 0;
-  }
-}
-
-// Send SMS via SIM800L
-void sendSMS(String msg){
-  sim800.println("AT+CMGF=1");
-  delay(500);
-  sim800.print("AT+CMGS=\"");
-  sim800.print(phoneNumber);
-  sim800.println("\"");
-  delay(500);
-  sim800.print(msg);
-  delay(500);
-  sim800.write(26); // CTRL+Z
-  delay(4000);
-}
-
-// Make phone call via SIM800L
-void makeCall(){
-  sim800.print("ATD");
-  sim800.print(phoneNumber);
-  sim800.println(";");
-  delay(30000); // Ring for 30 sec
-  sim800.println("ATH"); // Hang up
-}
-
-// Display gas and IR sensor values on LCD
-void displayLCD(DateTime now, int gas, int flame){
-  lcd.setCursor(0,0);
-  String hr = (now.hour()<10?"0":"") + String(now.hour());
-  String mn = (now.minute()<10?"0":"") + String(now.minute());
-  String sc = (now.second()<10?"0":"") + String(now.second());
-  lcd.print(hr + ":" + mn + ":" + sc);
-
-  lcd.setCursor(9,0);
-  lcd.print("G:");
-  lcd.print(gas);
-
-  lcd.setCursor(0,1);
-  lcd.print("IR:");
-  lcd.print(flame);
+// ================= RGB CONTROL =================
+void setRGB(int r,int g,int b){
+  digitalWrite(redRGB,r);
+  digitalWrite(greenRGB,g);
+  digitalWrite(blueRGB,b);
 }
 
 // ---------------- SETUP ----------------
