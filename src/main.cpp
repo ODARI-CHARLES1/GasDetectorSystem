@@ -15,7 +15,7 @@ const int redLED = 13;
 // SIM800L
 SoftwareSerial sim800(3,2);
 
-// ---------------- DFPLAYER ----------------
+// DFPlayer
 SoftwareSerial dfSerial(10,11);
 DFRobotDFPlayerMini player;
 
