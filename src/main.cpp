@@ -19,10 +19,10 @@ SoftwareSerial sim800(3,2);
 SoftwareSerial dfSerial(10,11);
 DFRobotDFPlayerMini player;
 
-// ---------------- Thresholds ----------------
-const int GAS_THRESHOLD = 500;
-const int SMOKE_THRESHOLD = 350;
-const int FIRE_THRESHOLD = 700;
+// ================= THRESHOLDS =================
+const int SMOKE_THRESHOLD = 420;  // below this is safe
+const int GAS_THRESHOLD   = 421;  // above this is GAS
+const int FIRE_THRESHOLD  = 600;
 
 // ================= STATE =================
 int gasValue = 0;
