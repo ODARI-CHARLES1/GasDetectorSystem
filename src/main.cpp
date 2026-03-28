@@ -1,27 +1,15 @@
 #include <Arduino.h>
-#include <Wire.h>
-#include <RTClib.h>
 #include <LiquidCrystal.h>
 #include <SoftwareSerial.h>
 #include <DFRobotDFPlayerMini.h>
 
-// ---------------- LCD ----------------
-LiquidCrystal lcd(4,5,6,7,8,9);
-
-// ---------------- RTC ----------------
-RTC_PCF8563 rtc;
-
-// ---------------- Sensors ----------------
+// ================= PIN DEFINITIONS =================
+LiquidCrystal lcd(4,5,6,7,8,9);   // RS, EN, D4-D7
 const int mq2Pin = A0;
-const int flamePin = A1;  // IR phototransistor analog input
-
-// ---------------- RGB LED ----------------
+const int flamePin = A1;
 const int redRGB = A2;
-const int greenRGB = A3;
+const int greenRGB = 12;
 const int blueRGB = A4;
-
-// ---------------- Status LEDs ----------------
-const int greenLED = 12;
 const int redLED = 13;
 
 // ---------------- SIM800L ----------------
