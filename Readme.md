@@ -16,6 +16,7 @@ A simple and effective gas leak detection system built with Arduino Uno and MQ-2
 
 ## Overview
 
+
 This IoT Gas Detection System uses the MQ-2 gas sensor to detect the presence of dangerous gases like:
 - LPG (Liquefied Petroleum Gas)
 - Propane
