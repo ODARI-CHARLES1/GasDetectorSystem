@@ -4,60 +4,54 @@
 #include <DFRobotDFPlayerMini.h>
 
 // ================= PIN DEFINITIONS =================
-LiquidCrystal lcd(4,5,6,7,8,9);   // RS, EN, D4-D7
-const int mq2Pin = A0;
-const int flamePin = A1;
+LiquidCrystal lcd(4,5,6,7,8,9);
+
+const int mq2Pin = A0;      // Smoke/Gas sensor
+const int flamePin = A1;    // Flame sensor
+
 const int redRGB = A2;
 const int greenRGB = 12;
 const int blueRGB = A4;
+
 const int redLED = 13;
 
-// SIM800L
-SoftwareSerial sim800(3,2);
-
-// DFPlayer
+// ================= DFPLAYER =================
 SoftwareSerial dfSerial(10,11);
 DFRobotDFPlayerMini player;
 
+// ================= SIM800L =================
+SoftwareSerial sim800(3,2); // RX, TX pins
+const char phoneNumber[] = "+254797933796"; // Replace with your number
+
 // ================= THRESHOLDS =================
-const int SMOKE_THRESHOLD = 420;  // below this is safe
-const int GAS_THRESHOLD   = 421;  // above this is GAS
+const int SMOKE_THRESHOLD = 380;
+const int GAS_THRESHOLD   = 420;
 const int FIRE_THRESHOLD  = 600;
 
-// ================= STATE =================
-int gasValue = 0;
-int flameValue = 0;
-int currentState = 0;  // 0=SAFE, 1=SMOKE, 2=GAS, 3=FIRE
-int lastState = 0;
+// ================= RGB BLINK =================
+unsigned long lastBlink = 0;
+const unsigned long BLINK_INTERVAL = 500;
+bool blinkState = false;
 
-bool smsSent = false;
-bool callMade = false;
-bool alarmPlaying = false;
-
-// ================= TIMING =================
-unsigned long lastSensorRead = 0;
-unsigned long lastLCDUpdate = 0;
-unsigned long lastSmsTime = 0;
-unsigned long lastCallTime = 0;
-unsigned long gasFallTime = 0;
-
-const unsigned long SENSOR_INTERVAL = 50;
-const unsigned long LCD_INTERVAL = 500;
-const unsigned long SMS_COOLDOWN = 30000;
-const unsigned long CALL_COOLDOWN = 60000;
-const unsigned long GAS_FALL_DELAY = 10000;  // 10 sec delay to allow gas to fall
-
-// ================= RGB CONTROL =================
 void setRGB(int r,int g,int b){
   digitalWrite(redRGB,r);
   digitalWrite(greenRGB,g);
   digitalWrite(blueRGB,b);
 }
 
-// ---------------- SETUP ----------------
+void blinkRGB(int r,int g,int b){
+  if(millis() - lastBlink >= BLINK_INTERVAL){
+    lastBlink = millis();
+    blinkState = !blinkState;
+    if(blinkState)
+      setRGB(r,g,b);
+    else
+      setRGB(0,0,0);
+  }
+}
+
 void setup(){
   Serial.begin(9600);
-  Wire.begin();
   sim800.begin(9600);
   dfSerial.begin(9600);
   lcd.begin(16,2);
@@ -66,7 +60,6 @@ void setup(){
   pinMode(greenRGB,OUTPUT);
   pinMode(blueRGB,OUTPUT);
   pinMode(redLED,OUTPUT);
-  pinMode(greenLED,OUTPUT);
   pinMode(flamePin,INPUT);
 
   setRGB(0,1,0); // GREEN = SAFE
@@ -74,100 +67,94 @@ void setup(){
   lcd.print("Smart Safety Sys");
   lcd.setCursor(0,1);
   lcd.print("Initializing..");
-  delay(2000);
-  lcd.clear();
-
-  // SIM800L init
-  delay(3000);
-  sim800.println("AT");
   delay(1000);
-  sim800.println("AT+CMGF=1");
+
+  player.begin(dfSerial);
+  player.volume(30);
+
+  // Test SIM800L
+  sim800.println("AT");
+  delay(500);
+
+  lcd.clear();
+  lcd.print("Sensor Warmup");
+  lcd.setCursor(0,1);
+  lcd.print("Please wait");
+  delay(3000);
+  lcd.clear();
 }
 
-// ---------------- LOOP ----------------
 void loop(){
-  DateTime now = rtc.now();
-  gasValue = analogRead(mq2Pin);
-  flameValue = analogRead(flamePin);
+  int gasValue = analogRead(mq2Pin);
+  int flameValue = analogRead(flamePin);
 
-  displayLCD(now, gasValue, flameValue);
-  Serial.print("Gas: "); Serial.print(gasValue); 
-  Serial.print(" | IR: "); Serial.println(flameValue);
+  Serial.print("Gas:"); Serial.print(gasValue);
+  Serial.print(" Flame:"); Serial.println(flameValue);
 
-  alertActive = false;
+  int currentState = 0;
+  if(flameValue >= FIRE_THRESHOLD) currentState = 3;
+  else if(gasValue >= GAS_THRESHOLD) currentState = 2;
+  else if(gasValue >= SMOKE_THRESHOLD) currentState = 1;
+  else currentState = 0;
 
-  // -------- FIRE DETECTED --------
-  if(flameValue > FIRE_THRESHOLD){
-    alertActive = true;
-    lcd.setCursor(0,1); lcd.print("FIRE DETECTED!!!");
-    digitalWrite(redLED,HIGH);
-    digitalWrite(greenLED,LOW);
-    rgbDangerBlink();
-    if(!alarmPlaying){
-      player.play(3); // fire alarm sound
-      alarmPlaying = true;
-    }
-    if(!fireSmsSent){
-      sendSMS("CRITICAL ALERT!\nFire detected in monitored area!\nImmediate action required.");
-      fireSmsSent = true;
-    }
-    if(!callMade){
-      makeCall();
-      callMade = true;
-    }
-  }
-  // -------- GAS DETECTED --------
-  else if(gasValue > GAS_THRESHOLD){
-    alertActive = true;
-    lcd.setCursor(0,1); lcd.print("GAS LEAK ALERT ");
-    digitalWrite(redLED,HIGH);
-    digitalWrite(greenLED,LOW);
-    rgbDangerBlink();
-    if(!alarmPlaying){
-      player.play(1); // methane alarm
-      alarmPlaying = true;
-    }
-    if(!gasSmsSent){
-      sendSMS("EMERGENCY ALERT: Methane (CH4) gas leakage has been detected by the Smart Gas Monitoring System. Methane is highly flammable and may cause fire/explosion. Immediate inspection required.");
-      gasSmsSent = true;
-    }
-  }
-  // -------- SMOKE DETECTED --------
-  else if(gasValue > SMOKE_THRESHOLD){
-    alertActive = true;
-    lcd.setCursor(0,1); lcd.print("SMOKE DETECTED ");
-    digitalWrite(redLED,LOW);
-    digitalWrite(greenLED,HIGH);
-    digitalWrite(redRGB,HIGH);
-    digitalWrite(greenRGB,HIGH);
-    digitalWrite(blueRGB,LOW);
-    if(!alarmPlaying){
-      player.play(2); // smoke alarm
-      alarmPlaying = true;
-    }
-    if(!smokeSmsSent){
-      sendSMS("WARNING: Smoke has been detected by the Smart Gas and Fire Monitoring System. The presence of smoke may indicate a potential fire hazard or overheating equipment. Please inspect immediately.");
-      smokeSmsSent = true;
-    }
-  }
-  // -------- SAFE --------
-  else{
-    alertActive = false;
-    gasSmsSent = false;
-    smokeSmsSent = false;
-    fireSmsSent = false;
-    callMade = false;
-    alarmPlaying = false;
-    lcd.setCursor(0,1); lcd.print("AIR SAFE        ");
-    digitalWrite(greenLED,HIGH);
-    digitalWrite(redLED,LOW);
-    digitalWrite(redRGB,LOW);
-    digitalWrite(greenRGB,LOW);
-    digitalWrite(blueRGB,LOW);
+  // ===== SYSTEM ACTIONS =====
+  switch(currentState){
+    case 0: // SAFE
+      digitalWrite(redLED,LOW);
+      setRGB(0,1,0);
+      lcd.home();
+      lcd.print("GAS LEVEL:");
+      lcd.print(gasValue);
+      lcd.setCursor(0,1);
+      lcd.print("SYSTEM SAFE    ");
+      break;
+
+    case 1: // SMOKE
+    case 2: // GAS
+    case 3: // FIRE
+      digitalWrite(redLED,HIGH);
+      if(currentState==1) blinkRGB(1,1,0);
+      if(currentState==2) blinkRGB(1,0,1);
+      if(currentState==3) blinkRGB(1,0,0);
+
+      // Play alarm once
+      player.play(1);
+
+      // Prepare SMS message
+      String msg;
+      if(currentState == 1) msg = "ALERT: Hazard detected! Please check immediately.!";
+      if(currentState == 2) msg = "ALERT: Hazard detected! Please check immediately.!";
+      if(currentState == 3) msg = "ALERT: Hazard detected! Please check immediately.!";
+
+      // ===== SEND SMS =====
+      lcd.setCursor(0,1);
+      lcd.print("Sending SMS...  ");
+      sim800.println("AT+CMGF=1");
+      delay(500);
+      sim800.print("AT+CMGS=\"");
+      sim800.print(phoneNumber);
+      sim800.println("\"");
+      delay(500);
+      sim800.print(msg);
+      delay(500);
+      sim800.write(26); // CTRL+Z to send
+      lcd.setCursor(0,1);
+      lcd.print("SMS SENT        ");
+      Serial.println("SMS Sent: " + msg);
+
+      // ===== WAIT 4 SECONDS THEN CALL =====
+      delay(4000);
+      lcd.setCursor(0,1);
+      lcd.print("Calling...      ");
+      sim800.print("ATD");
+      sim800.print(phoneNumber);
+      sim800.println(";");
+      Serial.println("Calling " + String(phoneNumber));
+
+      // Wait a bit so alarm/call has time before next loop
+      delay(10000); // 10 seconds before reading sensors again
+      break;
   }
 
-  // Continue RGB blink during danger
-  if(alertActive) rgbDangerBlink();
-
-  delay(500);
+  delay(500); // short delay for stable readings
 }
